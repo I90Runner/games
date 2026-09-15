@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Round Robin Calculator & Reverse Stake Tool</title>
+    <title>Round Robin Calculator & Payout Analyzer</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -13,11 +13,11 @@
 </head>
 <body class="bg-gray-50 text-gray-800 min-h-screen p-4 md:p-8">
 
-    <div class="max-w-7xl mx-auto">
+    <div class="max-w-7xl mx-auto space-y-6">
         <!-- Header -->
         <header class="mb-6 text-center">
             <h1 class="text-3xl md:text-4xl font-extrabold text-blue-600 mb-2">Round Robin Calculator & Payout Analyzer</h1>
-            <p class="text-gray-600">Simulate multi-tier round-robin parlays with American odds, What-If analysis, and reverse stake calculations.</p>
+            <p class="text-gray-600">Simulate multi-tier round-robin parlays with American odds, What-If analysis, and report exports.</p>
         </header>
 
         <!-- Main Navigation Tabs -->
@@ -70,9 +70,23 @@
                                 <button onclick="toggleAllTiers(false)" class="text-blue-600 hover:underline font-medium cursor-pointer">Clear All</button>
                             </div>
                         </div>
-                        <div id="tierConfigContainer" class="space-y-3 max-h-96 overflow-y-auto pr-1">
+                        <div id="tierConfigContainer" class="space-y-3 max-h-80 overflow-y-auto pr-1">
                             <!-- Populated dynamically -->
                         </div>
+                    </div>
+
+                    <!-- Export / Import Section -->
+                    <div class="border-t pt-3 grid grid-cols-3 gap-2">
+                        <button onclick="exportToExcel()" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium text-xs py-2 px-1 rounded-lg transition cursor-pointer text-center">
+                            📊 Excel
+                        </button>
+                        <button onclick="exportData()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium text-xs py-2 px-1 rounded-lg transition cursor-pointer text-center">
+                            📥 Export
+                        </button>
+                        <button onclick="document.getElementById('importFile').click()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium text-xs py-2 px-1 rounded-lg transition cursor-pointer text-center">
+                            📤 Import
+                        </button>
+                        <input type="file" id="importFile" accept=".json" class="hidden" onchange="importData(event)">
                     </div>
                 </div>
 
@@ -119,7 +133,7 @@
                                 🧹 Clear All
                             </button>
                             <button onclick="randomizeSelections()" class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium px-3 py-1.5 rounded-lg transition cursor-pointer">
-                                🎲 Randomize Form
+                                🎲 Randomize
                             </button>
                         </div>
                     </div>
@@ -224,7 +238,6 @@
                 </div>
             </div>
         </div>
-
     </div>
 
     <script>
@@ -419,6 +432,85 @@
             selections.forEach(sel => { sel.outcome = 'lost'; });
             renderSelections();
             calculateResults();
+        }
+
+        // --- Export to Excel (CSV) ---
+        function exportToExcel() {
+            let csvContent = "data:text/csv;charset=utf-8,";
+            
+            // Summary Header
+            csvContent += "ROUND ROBIN SUMMARY REPORT\r\n";
+            csvContent += `Total Combinations,${document.getElementById('sumTotalCombos').innerText}\r\n`;
+            csvContent += `Total Outlay,${document.getElementById('sumOutlay').innerText}\r\n`;
+            csvContent += `Total Payout,${document.getElementById('sumPayout').innerText}\r\n`;
+            csvContent += `Net Profit/Loss,${document.getElementById('sumProfit').innerText}\r\n\r\n`;
+
+            // Selections Table
+            csvContent += "SELECTIONS & OUTCOMES\r\n";
+            csvContent += "Index,Team Name,American Odds,Outcome\r\n";
+            selections.forEach((sel, i) => {
+                csvContent += `${i + 1},"${sel.name}",${sel.oddsInput},${sel.outcome}\r\n`;
+            });
+            csvContent += "\r\n";
+
+            // Tier Summary Table
+            csvContent += "PARLAY TIER BREAKDOWN\r\n";
+            csvContent += "Tier,Active Combos,Total Combos,Outlay,Payout,Net Profit\r\n";
+            let result = computePayoutForState(selections, true);
+            result.tierSummaryList.forEach(item => {
+                let profit = item.payout - item.outlay;
+                csvContent += `"${item.tierName}",${item.activeCombos},${item.totalCombos},$${item.outlay.toFixed(2)},$${item.payout.toFixed(2)},$${profit.toFixed(2)}\r\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "round_robin_report.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Export Configuration as JSON
+        function exportData() {
+            const data = {
+                selections: selections,
+                tierSettings: tierSettings
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'round_robin_config.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Import Configuration from JSON
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (data.selections && data.tierSettings) {
+                        selections = data.selections;
+                        tierSettings = data.tierSettings;
+                        document.getElementById('selectionCount').value = selections.length;
+                        renderTierConfig(selections.length);
+                        renderSelections();
+                        calculateResults();
+                        alert('Configuration imported successfully!');
+                    } else {
+                        alert('Invalid configuration file format.');
+                    }
+                } catch (err) {
+                    alert('Error parsing JSON file.');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
         }
 
         function getCombinations(arr, k) {
