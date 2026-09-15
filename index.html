@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Round Robin Calculator (Up to 15 Teams) with What-If Analysis</title>
+    <title>Round Robin Calculator & Payout Analyzer</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -16,8 +16,8 @@
     <div class="max-w-7xl mx-auto">
         <!-- Header -->
         <header class="mb-8 text-center">
-            <h1 class="text-3xl md:text-4xl font-extrabold text-blue-600 mb-2">15-Team Round Robin Calculator & What-If Analysis</h1>
-            <p class="text-gray-600">Simulate multi-tier round-robin parlays up to 15 selections with custom stakes and win/loss leverage tracking.</p>
+            <h1 class="text-3xl md:text-4xl font-extrabold text-blue-600 mb-2">Round Robin Calculator & Payout Analyzer</h1>
+            <p class="text-gray-600">Simulate multi-tier round-robin parlays up to 15 selections with Win, Push, and Lost outcomes.</p>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -96,7 +96,7 @@
 
             </div>
 
-            <!-- RIGHT PANEL: Selections, Outcomes & What-If Analysis (Col span 7) -->
+            <!-- RIGHT PANEL: Selections, Tier Breakdown & What-If Analysis (Col span 7) -->
             <div class="lg:col-span-7 space-y-6">
                 
                 <!-- Selections Card -->
@@ -116,8 +116,33 @@
                         </div>
                     </div>
 
-                    <div id="selectionsList" class="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                    <div id="selectionsList" class="space-y-3 max-h-[400px] overflow-y-auto pr-1">
                         <!-- Populated dynamically -->
+                    </div>
+                </div>
+
+                <!-- Tier Summary Breakdown Card -->
+                <div class="bg-white rounded-xl shadow-md p-6 border border-gray-100 space-y-4">
+                    <div class="border-b pb-2">
+                        <h2 class="font-bold text-lg text-gray-800">Parlay Tier Summary (2-Team, 3-Team, etc.)</h2>
+                        <p class="text-xs text-gray-500">Aggregate performance and payout breakdown per round-robin tier.</p>
+                    </div>
+
+                    <div class="overflow-x-auto max-h-80">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="bg-gray-50 text-gray-500 uppercase tracking-wider border-b border-gray-100 sticky top-0">
+                                    <th class="py-2.5 px-3 font-semibold bg-gray-50">Parlay Tier</th>
+                                    <th class="py-2.5 px-2 font-semibold text-center bg-gray-50">Active / Total Combos</th>
+                                    <th class="py-2.5 px-3 font-semibold text-right bg-gray-50">Outlay</th>
+                                    <th class="py-2.5 px-3 font-semibold text-right bg-gray-50">Payout</th>
+                                    <th class="py-2.5 px-3 font-semibold text-right bg-gray-50">Net Profit / Loss</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tierSummaryBody" class="divide-y divide-gray-100">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
@@ -128,7 +153,7 @@
                         <p class="text-xs text-gray-500">See how your total payout changes if you flip an individual selection's outcome.</p>
                     </div>
 
-                    <div class="overflow-x-auto max-h-96">
+                    <div class="overflow-x-auto max-h-80">
                         <table class="w-full text-left border-collapse text-xs">
                             <thead>
                                 <tr class="bg-gray-50 text-gray-500 uppercase tracking-wider border-b border-gray-100 sticky top-0">
@@ -156,7 +181,6 @@
         let selections = [];
         let tierSettings = {};
 
-        // 15 Default team names
         const defaultNames = [
             "Team Alpha", "Team Bravo", "Team Charlie", "Team Delta", "Team Echo", 
             "Team Foxtrot", "Team Golf", "Team Hotel", "Team India", "Team Juliet", 
@@ -179,7 +203,7 @@
 
         function parseToDecimal(val) {
             let num = parseFloat(val);
-            if (isNaN(num)) return 1.91; // standard -110 decimal equivalent
+            if (isNaN(num)) return 1.91;
 
             if (oddsFormat === 'american') {
                 if (num > 0) return 1 + (num / 100);
@@ -202,7 +226,7 @@
                 } else {
                     selections.push({
                         name: defaultNames[i],
-                        oddsInput: -110, // Default American odds set to -110
+                        oddsInput: -110,
                         outcome: 'winner'
                     });
                 }
@@ -289,7 +313,7 @@
                             #${idx + 1}
                         </div>
                         <div class="md:col-span-4">
-                            <input type="text" value="${sel.name}" oninput="selections[${idx}].name = this.value; renderWhatIfTable();" 
+                            <input type="text" value="${sel.name}" oninput="selections[${idx}].name = this.value; calculateResults();" 
                                 class="w-full text-sm font-medium bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500">
                         </div>
                         <div class="md:col-span-3">
@@ -315,20 +339,14 @@
             calculateResults();
         }
 
-        // Quick action: Check All (Sets all selections to Win)
         function checkAllTeams() {
-            selections.forEach(sel => {
-                sel.outcome = 'winner';
-            });
+            selections.forEach(sel => { sel.outcome = 'winner'; });
             renderSelections();
             calculateResults();
         }
 
-        // Quick action: Clear All (Sets all selections to Lost)
         function clearAllTeams() {
-            selections.forEach(sel => {
-                sel.outcome = 'lost';
-            });
+            selections.forEach(sel => { sel.outcome = 'lost'; });
             renderSelections();
             calculateResults();
         }
@@ -346,11 +364,12 @@
             return ret;
         }
 
-        function computePayoutForState(stateSelections) {
+        function computePayoutForState(stateSelections, generateSummary = false) {
             let n = stateSelections.length;
             let totalCombosAll = 0;
             let totalOutlay = 0;
             let totalPayout = 0;
+            let tierSummaryList = [];
 
             for (let k = 2; k <= n; k++) {
                 let setting = tierSettings[k] || { enabled: false, stakeType: 'totalStake', stake: 0 };
@@ -376,10 +395,11 @@
 
                     totalOutlay += tierOutlay;
 
+                    let tierPayout = 0;
+                    let activeCombos = 0;
+
                     combos.forEach(combo => {
                         let hasLoser = combo.some(item => item.outcome === 'lost');
-                        if (hasLoser) return; 
-
                         let comboDecimalOdds = 1.0;
                         let activeLegs = 0;
 
@@ -388,21 +408,52 @@
                                 comboDecimalOdds *= parseToDecimal(item.oddsInput);
                                 activeLegs++;
                             }
+                            // 'push' acts as a neutral 1.0 multiplier
                         });
 
-                        if (activeLegs === 0) {
-                            totalPayout += stakePerCombo;
+                        let comboPayout = 0;
+
+                        if (hasLoser) {
+                            comboPayout = 0;
+                        } else if (activeLegs === 0) {
+                            activeCombos++; 
+                            comboPayout = stakePerCombo; 
                         } else {
-                            totalPayout += stakePerCombo * comboDecimalOdds;
+                            activeCombos++;
+                            comboPayout = stakePerCombo * comboDecimalOdds;
                         }
+
+                        tierPayout += comboPayout;
                     });
+
+                    totalPayout += tierPayout;
+
+                    if (generateSummary) {
+                        tierSummaryList.push({
+                            tierName: `${k}-Team Parlays`,
+                            totalCombos: numCombos,
+                            activeCombos: activeCombos,
+                            outlay: tierOutlay,
+                            payout: tierPayout
+                        });
+                    }
+                } else {
+                    if (generateSummary && setting.enabled) {
+                        tierSummaryList.push({
+                            tierName: `${k}-Team Parlays`,
+                            totalCombos: numCombos,
+                            activeCombos: 0,
+                            outlay: 0,
+                            payout: 0
+                        });
+                    }
                 }
             }
-            return { totalCombosAll, totalOutlay, totalPayout };
+            return { totalCombosAll, totalOutlay, totalPayout, tierSummaryList };
         }
 
         function calculateResults() {
-            let result = computePayoutForState(selections);
+            let result = computePayoutForState(selections, true);
             let netProfit = result.totalPayout - result.totalOutlay;
 
             document.getElementById('sumTotalCombos').innerText = result.totalCombosAll;
@@ -413,7 +464,33 @@
             profitEl.innerText = `${netProfit >= 0 ? '+' : ''}$${netProfit.toFixed(2)}`;
             profitEl.className = `font-extrabold ${netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
 
+            renderTierSummaryTable(result.tierSummaryList);
             renderWhatIfTable(result.totalPayout);
+        }
+
+        function renderTierSummaryTable(tierSummaryList) {
+            let tbody = document.getElementById('tierSummaryBody');
+            tbody.innerHTML = '';
+
+            if (tierSummaryList.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-gray-400">No active tiers or stakes configured.</td></tr>`;
+                return;
+            }
+
+            tierSummaryList.forEach(item => {
+                let tierProfit = item.payout - item.outlay;
+                let profitColor = tierProfit >= 0 ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold';
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="py-2.5 px-3 font-semibold text-gray-800">${item.tierName}</td>
+                        <td class="py-2.5 px-2 text-center font-mono">${item.activeCombos} / ${item.totalCombos}</td>
+                        <td class="py-2.5 px-3 text-right font-medium">$${item.outlay.toFixed(2)}</td>
+                        <td class="py-2.5 px-3 text-right font-bold text-emerald-600">$${item.payout.toFixed(2)}</td>
+                        <td class="py-2.5 px-3 text-right ${profitColor}">${tierProfit >= 0 ? '+' : ''}$${tierProfit.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
         }
 
         function renderWhatIfTable(currentPayout = 0) {
@@ -431,7 +508,9 @@
                 let payoutIfLoss = computePayoutForState(clonedLoss).totalPayout;
                 let diffLoss = payoutIfLoss - currentPayout;
 
-                let currentBadge = sel.outcome === 'winner' ? '<span class="text-emerald-600 font-bold">Win</span>' : sel.outcome === 'push' ? '<span class="text-amber-600 font-bold">Push</span>' : '<span class="text-rose-600 font-bold">Lost</span>';
+                let currentBadge = sel.outcome === 'winner' ? '<span class="text-emerald-600 font-bold">Win</span>' : 
+                                   sel.outcome === 'push' ? '<span class="text-amber-600 font-bold">Push</span>' : 
+                                   '<span class="text-rose-600 font-bold">Lost</span>';
 
                 let diffWinStr = diffWin > 0 ? `+$${diffWin.toFixed(2)}` : diffWin < 0 ? `-$${Math.abs(diffWin).toFixed(2)}` : '$0.00';
                 let diffWinColor = diffWin > 0 ? 'text-emerald-600 font-bold' : diffWin < 0 ? 'text-rose-600' : 'text-gray-500';
@@ -460,7 +539,7 @@
             selections.forEach((sel, i) => {
                 sel.name = defaultNames[i] || `Team ${i+1}`;
                 sel.oddsInput = -110; 
-                let outcomes = ['winner', 'winner', 'winner', 'push', 'lost'];
+                let outcomes = ['winner', 'push', 'lost'];
                 sel.outcome = outcomes[Math.floor(Math.random() * outcomes.length)];
             });
             renderSelections();
